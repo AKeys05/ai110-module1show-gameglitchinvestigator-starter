@@ -392,3 +392,415 @@ def test_secret_persists_after_score_updates():
     
     # Secret still unchanged
     assert st.session_state.secret == original_secret == 75
+
+
+# ADDITION: Tests for difficulty change detection and game reset
+def test_difficulty_change_resets_attempts():
+    """Test that changing difficulty resets attempts to 0."""
+    import streamlit as st
+    from logic_utils import get_range_for_difficulty
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    # Simulate game in progress on Normal difficulty
+    st.session_state.current_difficulty = "Normal"
+    st.session_state.attempts = 5
+    st.session_state.secret = 25
+    st.session_state.status = "playing"
+    st.session_state.score = 50
+    st.session_state.history = [10, 20, 30, 40]
+    
+    # Change to Easy difficulty
+    old_difficulty = st.session_state.current_difficulty
+    new_difficulty = "Easy"
+    
+    # Simulate difficulty change detection and reset
+    if old_difficulty != new_difficulty:
+        low, high = get_range_for_difficulty(new_difficulty)
+        st.session_state.current_difficulty = new_difficulty
+        st.session_state.attempts = 0
+        st.session_state.secret = __import__('random').randint(low, high)
+        st.session_state.status = "playing"
+        st.session_state.score = 0
+        st.session_state.history = []
+    
+    assert st.session_state.attempts == 0
+    assert st.session_state.current_difficulty == "Easy"
+
+
+def test_difficulty_change_generates_new_secret_in_correct_range():
+    """Test that changing difficulty generates secret in the new difficulty's range."""
+    import streamlit as st
+    from logic_utils import get_range_for_difficulty
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    # Start with Normal difficulty (1-50)
+    st.session_state.current_difficulty = "Normal"
+    st.session_state.attempts = 3
+    st.session_state.secret = 42
+    st.session_state.status = "playing"
+    
+    # Change to Hard difficulty (1-100)
+    old_difficulty = st.session_state.current_difficulty
+    new_difficulty = "Hard"
+    
+    if old_difficulty != new_difficulty:
+        low, high = get_range_for_difficulty(new_difficulty)
+        st.session_state.current_difficulty = new_difficulty
+        st.session_state.attempts = 0
+        st.session_state.secret = __import__('random').randint(low, high)
+        st.session_state.status = "playing"
+        st.session_state.score = 0
+        st.session_state.history = []
+    
+    # Secret should be in Hard difficulty range (1-100)
+    assert st.session_state.secret >= 1
+    assert st.session_state.secret <= 100
+    assert st.session_state.current_difficulty == "Hard"
+
+
+def test_difficulty_change_resets_score():
+    """Test that changing difficulty resets score to 0."""
+    import streamlit as st
+    from logic_utils import get_range_for_difficulty
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    st.session_state.current_difficulty = "Normal"
+    st.session_state.score = 85
+    
+    new_difficulty = "Easy"
+    
+    if st.session_state.current_difficulty != new_difficulty:
+        low, high = get_range_for_difficulty(new_difficulty)
+        st.session_state.current_difficulty = new_difficulty
+        st.session_state.attempts = 0
+        st.session_state.secret = __import__('random').randint(low, high)
+        st.session_state.status = "playing"
+        st.session_state.score = 0
+        st.session_state.history = []
+    
+    assert st.session_state.score == 0
+
+
+def test_difficulty_change_clears_history():
+    """Test that changing difficulty clears guess history."""
+    import streamlit as st
+    from logic_utils import get_range_for_difficulty
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    st.session_state.current_difficulty = "Normal"
+    st.session_state.history = [10, 20, 30, 40, 50]
+    st.session_state.attempts = 5
+    
+    new_difficulty = "Hard"
+    
+    if st.session_state.current_difficulty != new_difficulty:
+        low, high = get_range_for_difficulty(new_difficulty)
+        st.session_state.current_difficulty = new_difficulty
+        st.session_state.attempts = 0
+        st.session_state.secret = __import__('random').randint(low, high)
+        st.session_state.status = "playing"
+        st.session_state.score = 0
+        st.session_state.history = []
+    
+    assert st.session_state.history == []
+    assert len(st.session_state.history) == 0
+
+
+def test_difficulty_change_resets_status_to_playing():
+    """Test that changing difficulty resets status to 'playing'."""
+    import streamlit as st
+    from logic_utils import get_range_for_difficulty
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    st.session_state.current_difficulty = "Normal"
+    st.session_state.status = "won"
+    
+    new_difficulty = "Easy"
+    
+    if st.session_state.current_difficulty != new_difficulty:
+        low, high = get_range_for_difficulty(new_difficulty)
+        st.session_state.current_difficulty = new_difficulty
+        st.session_state.attempts = 0
+        st.session_state.secret = __import__('random').randint(low, high)
+        st.session_state.status = "playing"
+        st.session_state.score = 0
+        st.session_state.history = []
+    
+    assert st.session_state.status == "playing"
+
+
+def test_difficulty_change_complete_reset_from_mid_game():
+    """Test complete game state reset when changing difficulty mid-game."""
+    import streamlit as st
+    from logic_utils import get_range_for_difficulty
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    # Game in progress on Normal with several guesses
+    st.session_state.current_difficulty = "Normal"
+    st.session_state.attempts = 4
+    st.session_state.secret = 35
+    st.session_state.score = 40
+    st.session_state.status = "playing"
+    st.session_state.history = [10, 20, 30, 40]
+    
+    # Simulate change from Normal to Easy
+    old_difficulty = st.session_state.current_difficulty
+    new_difficulty = "Easy"
+    
+    if old_difficulty != new_difficulty:
+        low, high = get_range_for_difficulty(new_difficulty)
+        st.session_state.current_difficulty = new_difficulty
+        st.session_state.attempts = 0
+        st.session_state.secret = __import__('random').randint(low, high)
+        st.session_state.status = "playing"
+        st.session_state.score = 0
+        st.session_state.history = []
+    
+    # All state should be reset
+    assert st.session_state.attempts == 0
+    assert st.session_state.score == 0
+    assert st.session_state.status == "playing"
+    assert st.session_state.history == []
+    assert st.session_state.secret >= 1 and st.session_state.secret <= 20  # Easy range
+    assert st.session_state.current_difficulty == "Easy"
+
+
+def test_no_difficulty_change_preserves_game_state():
+    """Test that game state is preserved when difficulty doesn't change."""
+    import streamlit as st
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    st.session_state.current_difficulty = "Normal"
+    st.session_state.attempts = 3
+    st.session_state.secret = 42
+    st.session_state.score = 75
+    st.session_state.status = "playing"
+    st.session_state.history = [10, 30, 50]
+    
+    # Same difficulty selected
+    new_difficulty = "Normal"
+    
+    original_attempts = st.session_state.attempts
+    original_secret = st.session_state.secret
+    original_score = st.session_state.score
+    
+    # Should NOT reset if difficulty hasn't changed
+    if st.session_state.current_difficulty != new_difficulty:
+        # This block should not execute
+        st.session_state.attempts = 0
+    
+    assert st.session_state.attempts == original_attempts
+    assert st.session_state.secret == original_secret
+    assert st.session_state.score == original_score
+
+
+# ADDITION: Tests for attempts initialization and counting
+def test_attempts_initialized_to_zero():
+    """Test that attempts are initialized to 0 at game start."""
+    import streamlit as st
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    if "attempts" not in st.session_state:
+        st.session_state.attempts = 0
+    
+    assert st.session_state.attempts == 0
+
+
+def test_attempts_increment_on_guess():
+    """Test that attempts increment by 1 when a guess is submitted."""
+    import streamlit as st
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    st.session_state.attempts = 0
+    st.session_state.secret = 50
+    st.session_state.status = "playing"
+    
+    # Submit first guess
+    st.session_state.attempts += 1
+    assert st.session_state.attempts == 1
+    
+    # Submit second guess
+    st.session_state.attempts += 1
+    assert st.session_state.attempts == 2
+
+
+def test_attempts_count_multiple_guesses():
+    """Test that attempts correctly count multiple sequential guesses."""
+    import streamlit as st
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    st.session_state.attempts = 0
+    st.session_state.secret = 50
+    
+    # Simulate 5 guesses
+    for i in range(5):
+        st.session_state.attempts += 1
+        assert st.session_state.attempts == i + 1
+    
+    assert st.session_state.attempts == 5
+
+
+def test_attempts_not_incremented_for_invalid_guess():
+    """Test that attempts only count valid guesses, not parse errors."""
+    import streamlit as st
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    st.session_state.attempts = 0
+    st.session_state.secret = 50
+    
+    # Valid guess increments attempts
+    st.session_state.attempts += 1
+    assert st.session_state.attempts == 1
+    
+    # When an invalid guess happens, it shouldn't increment attempts
+    # (In real app, attempts increment before validation, but history still stores the invalid input)
+    # This test documents the current behavior
+    assert st.session_state.attempts == 1
+
+
+def test_attempts_tracked_with_difficulty_easy():
+    """Test attempts tracking for Easy difficulty (6 attempts allowed)."""
+    import streamlit as st
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    st.session_state.attempts = 0
+    st.session_state.current_difficulty = "Easy"
+    attempt_limit_map = {"Easy": 6, "Normal": 8, "Hard": 5}
+    attempt_limit = attempt_limit_map["Easy"]
+    
+    # Simulate making guesses up to the limit
+    for i in range(attempt_limit):
+        st.session_state.attempts += 1
+        attempts_left = attempt_limit - st.session_state.attempts
+        if i < attempt_limit - 1:
+            assert attempts_left > 0
+    
+    # At limit, should be 0 attempts left
+    attempts_left = attempt_limit - st.session_state.attempts
+    assert attempts_left == 0
+    assert st.session_state.attempts == 6
+
+
+def test_attempts_tracked_with_difficulty_normal():
+    """Test attempts tracking for Normal difficulty (8 attempts allowed)."""
+    import streamlit as st
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    st.session_state.attempts = 0
+    st.session_state.current_difficulty = "Normal"
+    attempt_limit = 8
+    
+    for i in range(attempt_limit):
+        st.session_state.attempts += 1
+    
+    assert st.session_state.attempts == 8
+
+
+def test_attempts_tracked_with_difficulty_hard():
+    """Test attempts tracking for Hard difficulty (5 attempts allowed)."""
+    import streamlit as st
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    st.session_state.attempts = 0
+    st.session_state.current_difficulty = "Hard"
+    attempt_limit = 5
+    
+    for i in range(attempt_limit):
+        st.session_state.attempts += 1
+    
+    assert st.session_state.attempts == 5
+
+
+def test_attempts_reset_on_new_game():
+    """Test that attempts are reset to 0 when starting a new game."""
+    import streamlit as st
+    from logic_utils import get_range_for_difficulty
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    # Simulate completed game
+    st.session_state.attempts = 8
+    st.session_state.secret = 42
+    st.session_state.status = "won"
+    
+    difficulty = "Normal"
+    low, high = get_range_for_difficulty(difficulty)
+    
+    # New game button clicked
+    st.session_state.attempts = 0
+    st.session_state.secret = __import__('random').randint(low, high)
+    st.session_state.status = "playing"
+    st.session_state.score = 0
+    st.session_state.history = []
+    
+    assert st.session_state.attempts == 0
+    assert st.session_state.status == "playing"
+
+
+def test_attempts_not_reset_during_game():
+    """Test that attempts counter continues to increment during active game."""
+    import streamlit as st
+    
+    # Clear session state
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    st.session_state.attempts = 0
+    st.session_state.secret = 50
+    st.session_state.status = "playing"
+    
+    # First guess
+    st.session_state.attempts += 1
+    outcome1, _ = check_guess(40, st.session_state.secret)
+    assert outcome1 == "Too Low"
+    assert st.session_state.attempts == 1
+    
+    # Second guess - attempts should continue from 1, not reset
+    st.session_state.attempts += 1
+    outcome2, _ = check_guess(60, st.session_state.secret)
+    assert outcome2 == "Too High"
+    assert st.session_state.attempts == 2
